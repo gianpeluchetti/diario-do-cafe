@@ -24,7 +24,9 @@ aba_registro, aba_historico = st.tabs(["📝 Nova Avaliação", "📊 Histórico
 with aba_registro:
     # Seleção de Avaliador
     avaliador = st.selectbox("Quem está avaliando?", ["Gian", "Mari"])
-    
+    tipo_consumo = st.radio(
+        "Como foi o consumo?", ["Sozinho 👤", "Em conjunto 👥"], horizontal=True
+    )
     st.markdown("---")
     st.subheader("Nova Avaliação")
     
@@ -226,6 +228,7 @@ with aba_registro:
             "ID": novo_id,
             "Data": datetime.now().strftime("%d/%m/%Y"),
             "Avaliador": avaliador,
+            'Tipo_Consumo': tipo_consumo,
             "Marca": marca_final,
             "Linha": linha_final,
             "Moagem": moagem,
@@ -353,8 +356,44 @@ with aba_historico:
             # Marca mais consumida para o filtro selecionado
             if "Marca" in df_stats.columns:
                 marca_favorita = df_stats["Marca"].mode()[0] if not df_stats["Marca"].dropna().empty else "N/A"
-                st.metric("Marca Mais Consumida", marca_favorita)
                 
+            
+            if "Po_g" in df_stats.columns and "Agua_ml" in df_stats.columns and not df_stats.empty:
+                df_calc = df_stats.copy()
+                df_calc["Po_g_num"] = pd.to_numeric(df_calc["Po_g"], errors="coerce").fillna(0)
+                df_calc["Agua_ml_num"] = pd.to_numeric(df_calc["Agua_ml"], errors="coerce").fillna(0)
+    
+                # Se foi em conjunto, divide por 2 para o somatório total
+                if "Tipo_Consumo" in df_calc.columns:
+                    condicao_conjunto = df_calc["Tipo_Consumo"].str.contains("conjunto", case=False, na=False)
+                    df_calc.loc[condicao_conjunto, "Po_g_num"] = df_calc.loc[condicao_conjunto, "Po_g_num"] / 2
+                    df_calc.loc[condicao_conjunto, "Agua_ml_num"] = df_calc.loc[condicao_conjunto, "Agua_ml_num"] / 2
+    
+                total_gramas = df_calc["Po_g_num"].sum()
+                total_ml = df_calc["Agua_ml_num"].sum()
+    
+                # Conversão inteligente para Café (Gramas ou Quilogramas)
+                if total_gramas >= 1000:
+                    cafe_formatado = f"{total_gramas / 1000:.2f} kg"
+                else:
+                    cafe_formatado = f"{total_gramas:.1f} g"
+    
+                # Conversão para Água (Litros)
+                total_litros = total_ml / 1000
+                agua_formatada = f"{total_litros:.2f} L"
+    
+                # Exibe em duas métricas lado a lado
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    st.metric("Total de Café Utilizado", cafe_formatado)
+                with col_m2:
+                    st.metric("Total de Café Tomado (l)", agua_formatada)
+            else:
+                st.info("Colunas de peso de café ou água não encontradas para o cálculo.")
+            
+            
+            
+            
             # Rankings mais utilizados baseados na visão escolhida
             col_r1, col_r2, col_r3 = st.columns(3)
             
