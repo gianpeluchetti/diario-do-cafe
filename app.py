@@ -11,7 +11,7 @@ st.set_page_config(
 @st.dialog("Sucesso! 🎉")
 def janela_sucesso():
     st.write("A avaliação do seu café foi salva com sucesso!")
-    if st.button("Voltar"):
+    if st.button("Voltar ao início"):
         st.rerun()  # Recarrega a página inicial
 # ------------------------------------------------
 
