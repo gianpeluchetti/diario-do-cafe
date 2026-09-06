@@ -49,6 +49,66 @@ with aba_registro:
     
     
     # ABRINDO O FORMULÁRIO PRINCIPAL (Apenas um único st.form)
+    # --- BATALHA DE CAFÉS (FORA DO FORMULÁRIO para aparecer a lista suspensa) ---
+    st.markdown("---")
+    st.subheader("Batalha de Cafés ⚔️")
+    
+    id_ultimo = ""
+    cafe_anterior_str = "Nenhum"
+    veredito = "Primeiro café"
+    obs_comparacao = ""
+    
+    if df.empty:
+        st.info("Este será o primeiro café avaliado.")
+    else:
+        tipo_comparacao = st.radio(
+            "Modo de Comparação:",
+            ["Comparar com o meu último café", "Comparar com um ID específico (qualquer um)"],
+            horizontal=True
+        )
+    
+        cafe_referencia = None
+    
+        if tipo_comparacao == "Comparar com o meu último café":
+            df_avaliador = df[df["Avaliador"] == avaliador] if "Avaliador" in df.columns else pd.DataFrame()
+            if not df_avaliador.empty:
+                cafe_referencia = df_avaliador.iloc[-1]
+            elif not df.empty:
+                cafe_referencia = df.iloc[-1]
+        else:
+            if "ID" in df.columns and not df.empty:
+                opcoes_ids = {}
+                for idx, row in df.iterrows():
+                    raw_id = row.get('ID', idx + 1)
+                    try:
+                        cafe_id = int(float(raw_id))
+                    except:
+                        cafe_id = raw_id
+                        
+                    marca = row.get('Marca', 'Desconhecida')
+                    linha = row.get('Linha', '')
+                    data = row.get('Data')
+                    avaliador_reg = row.get('Avaliador', 'N/A')
+                    
+                    label = f"ID {cafe_id} - {data} {marca} {linha} ({avaliador_reg})"
+                    opcoes_ids[label] = row
+                
+                if opcoes_ids:
+                    label_escolhido = st.selectbox("Selecione o café de referência:", list(opcoes_ids.keys()))
+                    cafe_referencia = opcoes_ids[label_escolhido]
+    
+        if cafe_referencia is not None:
+            raw_id_ref = cafe_referencia.get("ID", "")
+            try:
+                id_ultimo = int(float(raw_id_ref))
+            except:
+                id_ultimo = raw_id_ref
+                
+            cafe_anterior_str = (
+                f"{cafe_referencia.get('Marca', '')} {cafe_referencia.get('Linha', '')} no"
+                f"(a) {cafe_referencia.get('Metodo', '')} (ID: {id_ultimo})"
+            )
+            st.write(f"Comparando com: **{cafe_anterior_str}**")
     with st.form("form_cafe"):
         col1, col2 = st.columns(2)
         with col1:
@@ -96,22 +156,19 @@ with aba_registro:
         todas_metodos = list(set(metodos_padrao + metodos_historico))
         todas_metodos.sort()
         
-        metodo_selecionado = st.selectbox("Método de Extração", todas_metodos)
-        metodo_novo = st.text_input("Ou adicione um novo método:")
-        metodo_final = metodo_novo.strip() if metodo_novo.strip() else metodo_selecionado
+        
+        
+        
         
         col1, col2 = st.columns(2)
         with col1:
+            metodo_selecionado = st.selectbox("Método de Extração", todas_metodos)
             po_g = st.number_input("Café (g)", min_value=0.0, step=0.5, value=15.0)
         with col2:
+            metodo_novo = st.text_input("Ou adicione um novo método:")
             agua_ml = st.number_input("Água (ml)", min_value=0.0, step=10.0, value=250.0)
+        metodo_final = metodo_novo.strip() if metodo_novo.strip() else metodo_selecionado   
         
-        if po_g > 0:
-            proporcao = agua_ml / po_g
-            proporcao_str = f"1:{proporcao:.1f}"
-            st.write(f"**Proporção calculada:** {proporcao_str}")
-        else:
-            proporcao_str = "1:0"
         
         tempo = st.text_input("Tempo de Extração (ex: 2:30)")
         observacoes = st.text_area("Observações Gerais sobre o Café")
@@ -130,24 +187,22 @@ with aba_registro:
                 f"(a) {ultimo_cafe.get('Metodo', '')}"
             )
         
-            st.markdown("---")
-            st.subheader("Batalha de Cafés ⚔️")
-            st.write(f"O **SEU** último café avaliado foi: **{cafe_anterior_str}**")
-        
-            veredito = st.radio(
-                "Comparado a esse último, como ficou o atual?",
-                ["Melhor 🏆", "Ficou Igual ⚖️", "Pior ❌"],
-                index=1,
-            )
-            obs_comparacao = st.text_input(
-                "Por que ficou melhor/pior? (Ex: mais doce, menos amargo)"
-            )
+# Batalha de Cafés / Comparação com suporte a ID específico
+# Batalha de Cafés / Comparação com suporte a ID específico
+        st.markdown("---")
+        st.subheader("Batalha de Cafés ⚔️")
+        if not df.empty:
+                veredito = st.radio(
+                    "Comparado a esse café, como ficou o atual?",
+                    ["Melhor 🏆", "Ficou Igual ⚖️", "Pior ❌"],
+                    index=1,
+                )
+                obs_comparacao = st.text_input(
+                    "Por que ficou melhor/pior? (Ex: mais doce, menos amargo)"
+                )
         else:
-            st.info(f"Este será o primeiro café avaliado por {avaliador}.")
-            id_ultimo = ""
-            cafe_anterior_str = "Nenhum"
-            veredito = "Primeiro café"
-            obs_comparacao = ""
+                veredito = "Primeiro café"
+                obs_comparacao = ""
         
         submit = st.form_submit_button("Salvar Avaliação")
     
@@ -165,7 +220,8 @@ with aba_registro:
             novo_id = len(df) + 1
         else:
           novo_id = 1
-    
+        proporcao = agua_ml / po_g
+        proporcao_str = f"1:{proporcao:.1f}"
         novo_registro = {
             "ID": novo_id,
             "Data": datetime.now().strftime("%d/%m/%Y"),
@@ -195,6 +251,7 @@ with aba_registro:
           st.error(f"Erro ao salvar na planilha: {e}")
 
 with aba_historico:
+    
     st.header("📊 Histórico e Estatísticas")
 
     if df.empty:
@@ -217,6 +274,80 @@ with aba_historico:
         if df_stats.empty:
             st.warning("Ainda não há registros para este avaliador.")
         else:
+            # --- CAFÉ CAMPEÃO DAS BATALHAS (CONFRONTOS DIRETOS) ---
+            st.subheader("👑 O Melhor Café (Ranking das Batalhas)")
+            
+            if "Veredito" in df_stats.columns and "ID" in df_stats.columns and not df_stats.empty:
+                # Dicionário para guardar a pontuação de cada ID de café
+                pontuacao = {}
+                info_cafes = {}
+
+                # Inicializa todos os cafés do dataset filtrado com 0 pontos (USANDO df_stats)
+                for _, row in df_stats.iterrows():
+                    # Tratamento seguro do ID
+                    try:
+                        cid = int(float(row["ID"]))
+                    except:
+                        continue
+                    
+                    marca = row.get("Marca", "")
+                    linha = row.get("Linha", "")
+                    proporcao = row.get("Proporcao", "")
+                    moagem = int(row.get("Moagem", ""))
+                    info_cafes[cid] = f"(ID {cid}) - {marca} - {linha} - Proporção: {proporcao} - Moagem: {moagem} cliques"
+                    if cid not in pontuacao:
+                        pontuacao[cid] = 0
+
+                # Processa as batalhas
+                for _, row in df_stats.iterrows():
+                    try:
+                        id_atual = int(float(row["ID"]))
+                    except:
+                        continue
+                    
+                    raw_ref = row.get("ID_Ultimo_Cafe", "")
+                    try:
+                        id_ref = int(float(raw_ref)) if pd.notna(raw_ref) and raw_ref != "" else None
+                    except:
+                        id_ref = None
+
+                    veredito = str(row.get("Veredito", ""))
+
+                    # Se tem referência válida e pontuação inicializada
+                    if id_ref in pontuacao and id_atual in pontuacao:
+                        if "Melhor" in veredito:
+                            # O café atual é melhor que o de referência
+                            pontuacao[id_atual] += 1
+                        elif "Pior" in veredito:
+                            # O de referência é melhor que o café atual (então o ref ganha o ponto)
+                            pontuacao[id_ref] += 1
+                        elif "Igual" in veredito:
+                            # Empate: ambos ganham meio ponto
+                            pontuacao[id_atual] += 0.5
+                            pontuacao[id_ref] += 0.5
+
+                if pontuacao:
+                    # Encontra o ID com maior pontuação
+                    melhor_id = max(pontuacao, key=pontuacao.get)
+                    maior_pontos = pontuacao[melhor_id]
+
+                    if maior_pontos > 0 and melhor_id in info_cafes:
+                        st.success(f"🏆 **{info_cafes[melhor_id]}** é o campeão das batalhas com **{maior_pontos}** pontos em confrontos diretos!")
+                        
+                        # Opcional: mostrar o placar completo dos cafés
+                        with st.expander("Ver placar completo dos cafés"):
+                            df_ranking = pd.DataFrame(list(pontuacao.items()), columns=["ID", "Pontos"])
+                            df_ranking["Café"] = df_ranking["ID"].map(info_cafes)
+                            df_ranking = df_ranking.sort_values(by="Pontos", ascending=False).reset_index(drop=True)
+                            st.dataframe(df_ranking[["ID", "Café", "Pontos"]], use_container_width=True)
+                    else:
+                        st.info("Ainda não há pontuações suficientes nas batalhas para definir um campeão.")
+                else:
+                    st.info("Nenhum confronto registrado.")
+            else:
+                st.info("Dados insuficientes para calcular o ranking de batalhas.")
+
+
             st.subheader("🏆 Destaques")
             
             # Marca mais consumida para o filtro selecionado
@@ -241,6 +372,7 @@ with aba_historico:
                 st.markdown("**Top Moagens**")
                 if "Moagem" in df_stats.columns:
                     st.write(df_stats["Moagem"].value_counts().reset_index(name="Total"))
+        # --- CAFÉ CAMPEÃO DAS BATALHAS ---
 
         st.markdown("---")
         st.subheader("📋 Todos os Registros")
