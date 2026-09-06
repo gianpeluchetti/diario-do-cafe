@@ -1,30 +1,31 @@
 import streamlit as st
 import pandas as pd
-import os
 from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
 # Configuração da página
 st.set_page_config(page_title="Diário do Café", page_icon="☕", layout="centered")
 
-ARQUIVO_CSV = 'historico_cafes.csv'
+st.title("☕ Diário do Café (Nuvem)")
+st.write("Avalie seus cafés salvando direto no Google Sheets!")
 
-# Função para carregar os dados
-def carregar_dados():
-    if os.path.exists(ARQUIVO_CSV):
-        return pd.read_csv(ARQUIVO_CSV)
-    else:
-        # Cria um DataFrame vazio com as colunas definidas
-        colunas = ['ID', 'Data', 'Avaliador', 'Marca', 'Moagem', 'Metodo', 'Po_g', 'Agua_ml', 'Proporcao', 'Tempo', 'Observacoes', 'ID_Ultimo_Cafe', 'Cafe_Anterior', 'Veredito']
-        return pd.DataFrame(columns=colunas)
+# Conexão com o Google Sheets
+# Nota: O Streamlit vai procurar as credenciais no arquivo .streamlit/secrets.toml
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    # Lemos a aba 'Respostas' (ou o nome que você der na sua planilha)
+    # ttl=0 garante que ele sempre pegue o dado mais atualizado, sem usar cache antigo
+    df = conn.read(worksheet="Página1", ttl=0)
+    # Limpa linhas vazias que o Google Sheets pode retornar
+    df = df.dropna(how="all")
+except Exception as e:
+    st.error(f"Erro ao conectar com a planilha. Verifique suas credenciais. Erro: {e}")
+    df = pd.DataFrame()
 
-# Função para salvar os dados
-def salvar_dados(df):
-    df.to_csv(ARQUIVO_CSV, index=False)
-
-df = carregar_dados()
-
-st.title("☕ Diário do Café")
-st.write("Avalie seus cafés de forma simples e progressiva!")
+# Se a planilha for nova e não tiver colunas, criamos a estrutura básica na memória
+colunas_esperadas = ['ID', 'Data', 'Avaliador', 'Marca', 'Moagem', 'Metodo', 'Po_g', 'Agua_ml', 'Proporcao', 'Tempo', 'Observacoes', 'ID_Ultimo_Cafe', 'Cafe_Anterior', 'Veredito']
+if df.empty or len(df.columns) < len(colunas_esperadas):
+    df = pd.DataFrame(columns=colunas_esperadas)
 
 # Abas para separar o formulário do histórico
 aba_novo, aba_historico = st.tabs(["Nova Avaliação", "Histórico e Ranking"])
@@ -32,8 +33,6 @@ aba_novo, aba_historico = st.tabs(["Nova Avaliação", "Histórico e Ranking"])
 with aba_novo:
     st.header("Registrar Novo Café")
     
-    # IMPORTANTE: Colocar o avaliador FORA do formulário permite que a página 
-    # atualize instantaneamente para buscar o "último café" correto da pessoa.
     avaliador = st.radio("Quem está avaliando?", ["Gian", "Mari"], horizontal=True)
     
     with st.form("form_cafe"):
@@ -45,7 +44,6 @@ with aba_novo:
             po_g = st.number_input("Quantidade de Pó (gramas)", min_value=1.0, value=20.0, step=1.0)
             
         with col2:
-            # Lógica para métodos dinâmicos
             metodos_historico = df['Metodo'].dropna().unique().tolist() if not df.empty else []
             metodos_padrao = ["V60", "Prensa Francesa", "Aeropress", "Moka", "Espresso"]
             todos_metodos = list(set(metodos_padrao + metodos_historico))
@@ -86,13 +84,9 @@ with aba_novo:
         
         if submit:
             if marca:
-                # Calcula proporção (ratio)
                 ratio = int(agua_ml / po_g) if po_g > 0 else 0
                 proporcao_str = f"1:{ratio}"
-                
-                # Define o método final
                 metodo_final = metodo_novo.strip() if metodo_novo.strip() else metodo_selecionado
-                
                 novo_id = 1 if df.empty else df['ID'].max() + 1
                 
                 novo_registro = {
@@ -112,12 +106,15 @@ with aba_novo:
                     'Veredito': veredito
                 }
                 
-                # Adiciona o novo registro ao DataFrame
+                # Atualiza o DataFrame com o novo registro
                 df_novo = pd.DataFrame([novo_registro])
                 df = pd.concat([df, df_novo], ignore_index=True)
-                salvar_dados(df)
                 
-                st.success(f"Café salvo com sucesso! Proporção calculada: {proporcao_str}. Método usado: {metodo_final}")
+                # Salva os dados no Google Sheets
+                conn.update(worksheet="Página1", data=df)
+                st.cache_data.clear() # Limpa o cache para forçar a leitura nova
+                
+                st.success(f"Café salvo no Google Sheets! Proporção: {proporcao_str}. Método: {metodo_final}")
             else:
                 st.error("Por favor, preencha pelo menos a Marca do café.")
 
@@ -126,13 +123,10 @@ with aba_historico:
     if df.empty:
         st.info("Nenhum café registrado ainda. Faça sua primeira avaliação na aba ao lado!")
     else:
-        # Mostra a tabela interativa
         st.dataframe(df, use_container_width=True)
-        
         st.markdown("---")
         st.subheader("Estatísticas Básicas")
         
-        # Abas internas para ver estatísticas individuais
         aba_geral, aba_gian, aba_mari = st.tabs(["Geral", "Gian", "Mari"])
         
         def mostrar_metricas(df_stats):
