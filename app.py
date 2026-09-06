@@ -51,66 +51,13 @@ with aba_registro:
     
     
     # ABRINDO O FORMULÁRIO PRINCIPAL (Apenas um único st.form)
-    # --- BATALHA DE CAFÉS (FORA DO FORMULÁRIO para aparecer a lista suspensa) ---
-    st.markdown("---")
-    st.subheader("Batalha de Cafés ⚔️")
     
     id_ultimo = ""
     cafe_anterior_str = "Nenhum"
     veredito = "Primeiro café"
     obs_comparacao = ""
     
-    if df.empty:
-        st.info("Este será o primeiro café avaliado.")
-    else:
-        tipo_comparacao = st.radio(
-            "Modo de Comparação:",
-            ["Comparar com o meu último café", "Comparar com um ID específico (qualquer um)"],
-            horizontal=True
-        )
-    
-        cafe_referencia = None
-    
-        if tipo_comparacao == "Comparar com o meu último café":
-            df_avaliador = df[df["Avaliador"] == avaliador] if "Avaliador" in df.columns else pd.DataFrame()
-            if not df_avaliador.empty:
-                cafe_referencia = df_avaliador.iloc[-1]
-            elif not df.empty:
-                cafe_referencia = df.iloc[-1]
-        else:
-            if "ID" in df.columns and not df.empty:
-                opcoes_ids = {}
-                for idx, row in df.iterrows():
-                    raw_id = row.get('ID', idx + 1)
-                    try:
-                        cafe_id = int(float(raw_id))
-                    except:
-                        cafe_id = raw_id
-                        
-                    marca = row.get('Marca', 'Desconhecida')
-                    linha = row.get('Linha', '')
-                    data = row.get('Data')
-                    avaliador_reg = row.get('Avaliador', 'N/A')
-                    
-                    label = f"ID {cafe_id} - {data} {marca} {linha} ({avaliador_reg})"
-                    opcoes_ids[label] = row
-                
-                if opcoes_ids:
-                    label_escolhido = st.selectbox("Selecione o café de referência:", list(opcoes_ids.keys()))
-                    cafe_referencia = opcoes_ids[label_escolhido]
-    
-        if cafe_referencia is not None:
-            raw_id_ref = cafe_referencia.get("ID", "")
-            try:
-                id_ultimo = int(float(raw_id_ref))
-            except:
-                id_ultimo = raw_id_ref
-                
-            cafe_anterior_str = (
-                f"{cafe_referencia.get('Marca', '')} {cafe_referencia.get('Linha', '')} no"
-                f"(a) {cafe_referencia.get('Metodo', '')} (ID: {id_ultimo})"
-            )
-            st.write(f"Comparando com: **{cafe_anterior_str}**")
+
     with st.form("form_cafe"):
         col1, col2 = st.columns(2)
         with col1:
@@ -193,18 +140,48 @@ with aba_registro:
 # Batalha de Cafés / Comparação com suporte a ID específico
         st.markdown("---")
         st.subheader("Batalha de Cafés ⚔️")
-        if not df.empty:
-                veredito = st.radio(
-                    "Comparado a esse café, como ficou o atual?",
-                    ["Melhor 🏆", "Ficou Igual ⚖️", "Pior ❌"],
-                    index=1,
-                )
-                obs_comparacao = st.text_input(
-                    "Por que ficou melhor/pior? (Ex: mais doce, menos amargo)"
-                )
+        if df.empty:
+            st.info("Este será o primeiro café avaliado.")
         else:
-                veredito = "Primeiro café"
-                obs_comparacao = ""
+                # 1. Filtra a tabela para mostrar APENAS os cafés do avaliador atual
+                df_avaliador_opcoes = df[df["Avaliador"] == avaliador] if "Avaliador" in df.columns else df
+                
+                if "ID" in df_avaliador_opcoes.columns and not df_avaliador_opcoes.empty:
+                    opcoes_ids = {}
+                    # 2. Faz o loop apenas nos cafés desse avaliador
+                    for idx, row in df_avaliador_opcoes.iterrows():
+                        raw_id = row.get('ID', idx + 1)
+                        try:
+                            cafe_id = int(float(raw_id))
+                        except:
+                            cafe_id = raw_id
+                            
+                        marca = row.get('Marca', 'Desconhecida')
+                        linha = row.get('Linha', '')
+                        data = row.get('Data', '')
+                        avaliador_reg = row.get('Avaliador', 'N/A')
+                        
+                        label = f"ID {cafe_id} - {data} {marca} {linha} ({avaliador_reg})"
+                        opcoes_ids[label] = row
+                    
+                    if opcoes_ids:
+                        label_escolhido = st.selectbox(f"Selecione um café avaliado por {avaliador}:", list(opcoes_ids.keys()))
+                        cafe_referencia = opcoes_ids[label_escolhido]
+                    else:
+                        st.warning(f"Nenhum café encontrado para {avaliador}.")
+                    veredito = st.radio(
+                        "Comparado a esse café, como ficou o atual?",
+                        ["Melhor 🏆", "Ficou Igual ⚖️", "Pior ❌"],
+                        index=1,
+                    )
+                    obs_comparacao = st.text_input(
+                        "Por que ficou melhor/pior? (Ex: mais doce, menos amargo)"
+                    )
+                else:
+                    st.info(f"Ainda não há cafés registrados por {avaliador} para comparar.")
+        
+            
+        
         
         submit = st.form_submit_button("Salvar Avaliação")
     
