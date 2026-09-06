@@ -46,7 +46,7 @@ with aba_novo:
         
         col1, col2 = st.columns(2)
         with col1:
-            moagem = st.number_input("Moagem (Número/Cliques)", min_value=0.0, value=15.0, step=0.5)
+            moagem = st.number_input("Moagem (Número/Cliques)", min_value=0.0, value=15.0, step=1.0)
             po_g = st.number_input("Quantidade de Pó (gramas)", min_value=1.0, value=20.0, step=1.0)
             
         with col2:
