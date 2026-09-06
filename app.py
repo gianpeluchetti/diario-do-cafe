@@ -368,11 +368,13 @@ with aba_historico:
                 agua_formatada = f"{total_litros:.2f} L"
     
                 # Exibe em duas métricas lado a lado
-                col_m1, col_m2 = st.columns(2)
+                col_m1, col_m2, col_m3 = st.columns(3)
                 with col_m1:
                     st.metric("Total de Café Utilizado", cafe_formatado)
                 with col_m2:
                     st.metric("Total de Café Tomado (l)", agua_formatada)
+                with col_m3:
+                    st.metric("Marca mais utilizada", marca_favorita)
             else:
                 st.info("Colunas de peso de café ou água não encontradas para o cálculo.")
             
