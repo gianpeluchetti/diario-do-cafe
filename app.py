@@ -78,13 +78,18 @@ with aba_novo:
             st.markdown("---")
             st.subheader("Batalha de Cafés ⚔️")
             st.write(f"O **SEU** último café avaliado foi: **{cafe_anterior_str}**")
+            
             veredito = st.radio(
                 "Comparado a esse último, como ficou o atual?",
                 ["Melhor 🏆", "Ficou Igual ⚖️", "Pior ❌"],
                 index=1
             )
+            
+            # NOVO: Campo de observação da comparação
+            obs_comparacao = st.text_input("Por que ficou melhor/pior? (Ex: mais doce, menos amargo)")
         else:
             st.info(f"Este será o primeiro café avaliado por {avaliador}.")
+            obs_comparacao = ""
         
         submit = st.form_submit_button("Salvar Avaliação")
         
@@ -111,7 +116,8 @@ with aba_novo:
                     'Observacoes': observacoes,
                     'ID_Ultimo_Cafe': id_ultimo,
                     'Cafe_Anterior': cafe_anterior_str,
-                    'Veredito': veredito
+                    'Veredito': veredito,
+                    'Obs_Comparacao': obs_comparacao
                 }
                 
                 # Atualiza o DataFrame com o novo registro
