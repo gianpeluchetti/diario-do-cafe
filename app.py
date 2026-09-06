@@ -7,6 +7,14 @@ st.set_page_config(
     page_title="Diário do Café", page_icon="☕", layout="centered"
 )
 
+# --- NOVO: Função que cria a janela de sucesso ---
+@st.dialog("Sucesso! 🎉")
+def janela_sucesso():
+    st.write("A avaliação do seu café foi salva com sucesso!")
+    if st.button("OK"):
+        st.rerun()  # Recarrega a página inicial
+# ------------------------------------------------
+
 st.title("☕ Diário do Café")
 
 # Conexão com o Google Sheets
@@ -225,10 +233,10 @@ with aba_registro:
         df_novo = pd.concat([df, pd.DataFrame([novo_registro])], ignore_index=True)
         try:
           conn.update(data=df_novo)
-          st.success("Avaliação salva com sucesso! 🎉")
-          st.rerun()
+          janela_sucesso()  # <--- Abre a janela pop-up aqui
         except Exception as e:
           st.error(f"Erro ao salvar na planilha: {e}")
+
 
 with aba_historico:
     
