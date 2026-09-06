@@ -36,7 +36,13 @@ with aba_novo:
     avaliador = st.radio("Quem está avaliando?", ["Gian", "Mari"], horizontal=True)
     
     with st.form("form_cafe"):
-        marca = st.text_input("Marca do Café")
+        marcas_historico = df['Marca'].dropna().unique().tolist() if not df.empty else []
+        marcas_padrao = ["Orfeu", "Baggio", "Três Corações"] # Você pode colocar marcas que já usa aqui
+        todas_marcas = list(set(marcas_padrao + marcas_historico))
+        todas_marcas.sort()
+        
+        marca_selecionada = st.selectbox("Marca do Café", todas_marcas)
+        marca_nova = st.text_input("Ou adicione uma nova marca:")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -83,7 +89,9 @@ with aba_novo:
         submit = st.form_submit_button("Salvar Avaliação")
         
         if submit:
-            if marca:
+            # Define a marca final (usa a nova se foi digitada, senão usa a selecionada)
+            marca_final = marca_nova.strip() if marca_nova.strip() else marca_selecionada
+            if marca_final:
                 ratio = int(agua_ml / po_g) if po_g > 0 else 0
                 proporcao_str = f"1:{ratio}"
                 metodo_final = metodo_novo.strip() if metodo_novo.strip() else metodo_selecionado
@@ -93,7 +101,7 @@ with aba_novo:
                     'ID': novo_id,
                     'Data': datetime.now().strftime("%d/%m/%Y"),
                     'Avaliador': avaliador,
-                    'Marca': marca,
+                    'Marca': marca_final,
                     'Moagem': moagem,
                     'Metodo': metodo_final,
                     'Po_g': po_g,
