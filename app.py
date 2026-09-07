@@ -27,8 +27,9 @@ except Exception as e:
     st.error(f"Erro ao conectar com a planilha. Verifique suas credenciais. {e}")
     df = pd.DataFrame()
 
+
 # Criando as Abas na tela principal
-aba_registro, aba_historico = st.tabs(["📝 Nova Avaliação", "📊 Histórico e Rankings"])
+aba_registro, aba_historico, aba_calibracao = st.tabs(["📝 Nova Avaliação", "📊 Histórico e Rankings", "🎯 Calibrações Definidas"])
 with aba_registro:
     # Seleção de Avaliador
     avaliador = st.selectbox("Quem está avaliando?", ["Gian", "Mari"])
@@ -147,46 +148,42 @@ with aba_registro:
 # Batalha de Cafés / Comparação com suporte a ID específico
 # Batalha de Cafés / Comparação com suporte a ID específico
         st.markdown("---")
-        st.subheader("Batalha de Cafés ⚔️")
-        if df.empty:
-            st.info("Este será o primeiro café avaliado.")
+        st.subheader("🥊 A Batalha: Desafiante vs Campeão")
+        
+        # Filtra o histórico para achar o campeão do avaliador atual
+        if not df.empty and "Avaliador" in df.columns:
+            # Pega apenas os cafés normais (ignora as calibrações) da pessoa selecionada
+            df_avaliador = df[(df["Avaliador"] == avaliador) & (df["Veredito"] != "RECEITA DE OURO 👑")]
+            
+            # O campeão é o último que recebeu "Melhor 🏆"
+            df_vencedores = df_avaliador[df_avaliador["Veredito"].str.contains("Melhor", na=False)]
+            
+            if not df_vencedores.empty:
+                campeao = df_vencedores.iloc[-1] # Pega a última linha dos vencedores
+            elif not df_avaliador.empty:
+                campeao = df_avaliador.iloc[-1] # Se ninguém ganhou ainda, o último vira o campeão por padrão
+            else:
+                campeao = None
         else:
-                # 1. Filtra a tabela para mostrar APENAS os cafés do avaliador atual
-                df_avaliador_opcoes = df[df["Avaliador"] == avaliador] if "Avaliador" in df.columns else df
-                
-                if "ID" in df_avaliador_opcoes.columns and not df_avaliador_opcoes.empty:
-                    opcoes_ids = {}
-                    # 2. Faz o loop apenas nos cafés desse avaliador
-                    for idx, row in df_avaliador_opcoes.iterrows():
-                        raw_id = row.get('ID', idx + 1)
-                        try:
-                            cafe_id = int(float(raw_id))
-                        except:
-                            cafe_id = raw_id
-                            
-                        marca = row.get('Marca', 'Desconhecida')
-                        linha = row.get('Linha', '')
-                        data = row.get('Data', '')
-                        avaliador_reg = row.get('Avaliador', 'N/A')
-                        
-                        label = f"ID {cafe_id} - {data} {marca} {linha} ({avaliador_reg})"
-                        opcoes_ids[label] = row
-                    
-                    if opcoes_ids:
-                        label_escolhido = st.selectbox(f"Selecione um café avaliado por {avaliador}:", list(opcoes_ids.keys()))
-                        cafe_referencia = opcoes_ids[label_escolhido]
-                    else:
-                        st.warning(f"Nenhum café encontrado para {avaliador}.")
-                    veredito = st.radio(
-                        "Comparado a esse café, como ficou o atual?",
-                        ["Melhor 🏆", "Ficou Igual ⚖️", "Pior ❌"],
-                        index=1,
-                    )
-                    obs_comparacao = st.text_input(
-                        "Por que ficou melhor/pior? (Ex: mais doce, menos amargo)"
-                    )
-                else:
-                    st.info(f"Ainda não há cafés registrados por {avaliador} para comparar.")
+            campeao = None
+
+        # Exibe o ringue de batalha
+        if campeao is not None:
+            st.info(f"👑 **CAMPEÃO ATUAL A BATER:**\n\n**{campeao.get('Marca', '')} {campeao.get('Linha', '')}**\n\nMétodo **{campeao.get('Metodo', '')}** com **{campeao.get('Moagem', '')} cliques** (Proporção {campeao.get('Proporcao', '')}).")
+            
+            id_enfrentado = campeao.get("ID", "Desconhecido")
+            cafe_enfrentado_nome = f"{campeao.get('Marca', '')} {campeao.get('Linha', '')}"
+            
+            veredito = st.radio(
+                "Comparado a esse Campeão, o café que você está bebendo AGORA ficou:", 
+                ["Melhor 🏆", "Pior 👎", "Igual ⚖️"],
+                horizontal=True
+            )
+        else:
+            st.info("Primeiro café registrado! Ele será o primeiro Campeão automaticamente.")
+            id_enfrentado = "Nenhum"
+            cafe_enfrentado_nome = "Nenhum"
+            veredito = "Melhor 🏆" # Força a ser o campeão inicial
         
             
         
@@ -223,8 +220,8 @@ with aba_registro:
             "Proporcao": proporcao_str,
             "Tempo": tempo,
             "Observacoes": observacoes,
-            "ID_Ultimo_Cafe": id_ultimo,
-            "Cafe_Anterior": cafe_anterior_str,
+            "ID_Ultimo_Cafe": id_enfrentado,
+            "Cafe_Anterior": cafe_enfrentado_nome,
             "Veredito": veredito,
             "Obs_Comparacao": obs_comparacao,
         }
@@ -262,85 +259,46 @@ with aba_historico:
         if df_stats.empty:
             st.warning("Ainda não há registros para este avaliador.")
         else:
-            # --- CAFÉ CAMPEÃO DAS BATALHAS (CONFRONTOS DIRETOS) ---
-            st.subheader("👑 O Melhor Café (Ranking das Batalhas)")
-            
-            if "Veredito" in df_stats.columns and "ID" in df_stats.columns and not df_stats.empty:
-                # Dicionário para guardar a pontuação de cada ID de café
-                pontuacao = {}
-                info_cafes = {}
-
-                # Inicializa todos os cafés do dataset filtrado com 0 pontos (USANDO df_stats)
-                for _, row in df_stats.iterrows():
-                    # Tratamento seguro do ID
-                    try:
-                        cid = int(float(row["ID"]))
-                    except:
-                        continue
+            # --- O GRANDE CAMPEÃO (REI DA COLINA) ---
+            st.markdown("---")
+            st.subheader("👑 O Grande Campeão Atual")
+    
+            if "Veredito" in df_stats.columns and not df_stats.empty:
+                # Tira as calibrações da jogada para olhar só as batalhas diárias
+                df_batalhas = df_stats[df_stats["Veredito"] != "RECEITA DE OURO 👑"]
+                
+                # Filtra apenas os que ganharam a coroa
+                df_campeoes = df_batalhas[df_batalhas["Veredito"].str.contains("Melhor", na=False)]
+                
+                if not df_campeoes.empty:
+                    campeao_atual = df_campeoes.iloc[-1] # O último a desbancar o rei assume o trono
                     
-                    marca = row.get("Marca", "")
-                    linha = row.get("Linha", "")
-                    proporcao = row.get("Proporcao", "")
-                    moagem = int(row.get("Moagem", ""))
-                    info_cafes[cid] = f"(ID {cid}) - {marca} - {linha} - Proporção: {proporcao} - Moagem: {moagem} cliques"
-                    if cid not in pontuacao:
-                        pontuacao[cid] = 0
-
-                # Processa as batalhas
-                for _, row in df_stats.iterrows():
-                    try:
-                        id_atual = int(float(row["ID"]))
-                    except:
-                        continue
+                    # Conta quantas vezes o campeão precisou defender o trono (quantos cafés vieram depois dele)
+                    idx_campeao = df_batalhas.index.get_loc(campeao_atual.name)
+                    defesas_de_trono = len(df_batalhas) - 1 - idx_campeao
                     
-                    raw_ref = row.get("ID_Ultimo_Cafe", "")
-                    try:
-                        id_ref = int(float(raw_ref)) if pd.notna(raw_ref) and raw_ref != "" else None
-                    except:
-                        id_ref = None
-
-                    veredito = str(row.get("Veredito", ""))
-
-                    # Se tem referência válida e pontuação inicializada
-                    if id_ref in pontuacao and id_atual in pontuacao:
-                        if "Melhor" in veredito:
-                            # O café atual é melhor que o de referência
-                            pontuacao[id_atual] += 1
-                        elif "Pior" in veredito:
-                            # O de referência é melhor que o café atual (então o ref ganha o ponto)
-                            pontuacao[id_ref] += 1
-                        elif "Igual" in veredito:
-                            # Empate: ambos ganham meio ponto
-                            pontuacao[id_atual] += 0.5
-                            pontuacao[id_ref] += 0.5
-
-                if pontuacao:
-                    # Encontra o ID com maior pontuação
-                    melhor_id = max(pontuacao, key=pontuacao.get)
-                    maior_pontos = pontuacao[melhor_id]
-
-                    if maior_pontos > 0 and melhor_id in info_cafes:
-                        st.success(f"🏆 **{info_cafes[melhor_id]}** é o campeão das batalhas com **{maior_pontos}** pontos em confrontos diretos!")
-                        
-                        # Opcional: mostrar o placar completo dos cafés
-                        with st.expander("Ver placar completo dos cafés"):
-                            df_ranking = pd.DataFrame(list(pontuacao.items()), columns=["ID", "Pontos"])
-                            df_ranking["Café"] = df_ranking["ID"].map(info_cafes)
-                            df_ranking = df_ranking.sort_values(by="Pontos", ascending=False).reset_index(drop=True)
-                            st.dataframe(df_ranking[["ID", "Café", "Pontos"]], use_container_width=True)
-                    else:
-                        st.info("Ainda não há pontuações suficientes nas batalhas para definir um campeão.")
+                    st.success(f"### 🏆 {campeao_atual.get('Marca', '')} - {campeao_atual.get('Linha', '')}\n\n"
+                               f"**Método {campeao_atual.get('Metodo', '')}**\n\n"
+                               f"⚙️ **Moagem:** {campeao_atual.get('Moagem', '')} cliques | 💧 **Proporção:** {campeao_atual.get('Proporcao', '')}\n\n"
+                               f"🛡️ **Defesas de Trono:** Sobreviveu a {defesas_de_trono} desafiantes desde que ganhou!\n\n"
+                               f"📅 **Data da Coroação:** {campeao_atual.get('Data', '')}")
                 else:
-                    st.info("Nenhum confronto registrado.")
+                    st.info("Nenhum campeão coroado ainda para este filtro.")
             else:
-                st.info("Dados insuficientes para calcular o ranking de batalhas.")
+                 st.info("Ainda não há dados suficientes para exibir um campeão.")
 
 
             st.subheader("🏆 Destaques")
             
+            
+            
             # Marca mais consumida para o filtro selecionado
             if "Marca" in df_stats.columns:
                 marca_favorita = df_stats["Marca"].mode()[0] if not df_stats["Marca"].dropna().empty else "N/A"
+            
+            if "Proporcao" in df_stats.columns:
+                proporcao_favorita = df_stats["Proporcao"].mode()[0] if not df_stats["Proporcao"].dropna().empty else "N/A"
+
                 
             
             if "Po_g" in df_stats.columns and "Agua_ml" in df_stats.columns and not df_stats.empty:
@@ -391,13 +349,29 @@ with aba_historico:
                     
             with col_r2:
                 st.markdown("**Top Linhas**")
-                if "Linha" in df_stats.columns:
+                if "Marca" in df_stats.columns and "Linha" in df_stats.columns:
+                    # Junta a Marca e a Linha (ex: Kroma - Premium) e faz a contagem
+                    marca_linha = df_stats["Marca"].astype(str) + " - " + df_stats["Linha"].astype(str)
+                    resultado = marca_linha.value_counts().reset_index()
+                    resultado.columns = ["Marca - Linha", "Total"]
+                    
+                    st.write(resultado)
+                elif "Linha" in df_stats.columns:
+                    # Fallback de segurança caso a coluna Marca dê erro
                     st.write(df_stats["Linha"].value_counts().reset_index(name="Total"))
                     
             with col_r3:
                 st.markdown("**Top Moagens**")
                 if "Moagem" in df_stats.columns:
                     st.write(df_stats["Moagem"].value_counts().reset_index(name="Total"))
+                    
+            col_r1, col_r2, col_r3 = st.columns(3)
+            
+            with col_r2:
+                st.markdown("**Top Proporções**")
+                if "Proporcao" in df_stats.columns:
+                    st.write(df_stats["Proporcao"].value_counts().reset_index(name="Total"))
+                    
         # --- CAFÉ CAMPEÃO DAS BATALHAS ---
 
         st.markdown("---")
@@ -405,3 +379,130 @@ with aba_historico:
         
         # Mostra a tabela completa (ou você pode filtrar se preferir mostrar tudo)
         st.dataframe(df, use_container_width=True)
+
+with aba_calibracao:
+    st.header("🎯 Calibrações Definidas (Receitas de Ouro)")
+    st.write("Terminou seus testes? Salve aqui a conclusão para nunca mais esquecer a receita perfeita!")
+    
+    # Lê a aba secundária
+    try:
+        df_calib = conn.read(worksheet="Calibracoes", ttl=0)
+    except Exception as e:
+        st.error("Erro ao ler a aba de calibrações. Verifique se você criou a aba 'Calibracoes' na planilha.")
+        df_calib = pd.DataFrame()
+    
+    avaliador_calib = st.radio(
+        "Quem está definindo esta calibração?",
+        ["Gian", "Mari"],
+        horizontal=True,
+        key="radio_calib"
+    )
+    
+    # --- BUSCANDO DADOS DA ABA PRINCIPAL (Marcas e Métodos) ---
+    marcas_existentes = sorted(df["Marca"].dropna().unique().tolist()) if not df.empty and "Marca" in df.columns else []
+    linhas_existentes = sorted(df["Linha"].dropna().unique().tolist()) if not df.empty and "Linha" in df.columns else []
+    metodos_existentes = sorted(df["Metodo"].dropna().unique().tolist()) if not df.empty and "Metodo" in df.columns else ["V60", "Prensa Francesa", "Espresso", "Italiana (Moka)", "Outro"]
+
+    # --- BUSCANDO FOCOS DE CALIBRAÇÃO (A mágica da lista dinâmica) ---
+    focos_base = ["Moagem ⚙️", "Proporção 💧", "Tempo ⏳", "Temperatura 🌡️"]
+    focos_planilha = df_calib["Parametro_Foco"].dropna().unique().tolist() if not df_calib.empty and "Parametro_Foco" in df_calib.columns else []
+    
+    # Junta os padrões com os que você já criou no passado, sem duplicar
+    lista_focos = []
+    for f in focos_base + focos_planilha:
+        if f not in lista_focos and "Outro" not in f:
+            lista_focos.append(f)
+    lista_focos.append("Outro ➕") # Adiciona o botão de Outro sempre no final
+
+    st.markdown("---")
+    st.subheader("🎯 Qual parâmetro você calibrou nesta sessão?")
+    
+    # IMPORTANTE: Isso fica FORA do form para a caixinha aparecer na mesma hora!
+    escolha_foco = st.radio("Foco principal do teste:", lista_focos, horizontal=True)
+    
+    foco_novo = ""
+    if escolha_foco == "Outro ➕":
+        foco_novo = st.text_input("Qual foi o novo parâmetro? (Ex: Filtro de Papel, Agitação)")
+
+    with st.form("form_calibracao"):
+        st.markdown("---")
+        st.subheader("📌 Receita Campeã (O que foi testado?)")
+        
+        col_c1, col_c2, col_c3 = st.columns(3)
+        with col_c1:
+            marca_sel = st.selectbox("Marca", ["Selecione..."] + marcas_existentes)
+            marca_nova = st.text_input("Ou adicione nova Marca:")
+        with col_c2:
+            linha_sel = st.selectbox("Linha", ["Selecione..."] + linhas_existentes)
+            linha_nova = st.text_input("Ou adicione nova Linha:")
+        with col_c3:
+            metodo_sel = st.selectbox("Método", ["Selecione..."] + metodos_existentes)
+            metodo_novo = st.text_input("Ou adicione novo Método:")
+        
+        st.markdown("---")
+        st.subheader("🏆 Resultados da Calibração")
+        col_r1, col_r2, col_r3 = st.columns(3)
+        with col_r1:
+            moagem_ideal = st.number_input("Moagem Ideal (cliques)", min_value=1.0, step=1.0, value=20.0)
+        with col_r2:
+            proporcao_ideal = st.text_input("Proporção Ideal (ex: 1:15)")
+        with col_r3:
+            tempo_temp = st.text_input("Tempo/Temp (ex: 2:30 / 92ºC)")
+            
+        obs_calib = st.text_area("Descreva a conclusão (ex: 'Testei os cliques 16, 20 e 24. A moagem 20 foi a melhor.')")
+        
+        submit_calib = st.form_submit_button("Salvar Receita de Ouro")
+        
+    if submit_calib:
+        marca_final_c = marca_nova.strip() if marca_nova.strip() else (marca_sel if marca_sel != "Selecione..." else "")
+        linha_final_c = linha_nova.strip() if linha_nova.strip() else (linha_sel if linha_sel != "Selecione..." else "")
+        metodo_final_c = metodo_novo.strip() if metodo_novo.strip() else (metodo_sel if metodo_sel != "Selecione..." else "")
+        
+        # Decide qual foco salvar na planilha
+        foco_final = foco_novo.strip() if escolha_foco == "Outro ➕" and foco_novo.strip() else escolha_foco
+
+        if not marca_final_c or not linha_final_c:
+            st.warning("Por favor, preencha a Marca e a Linha para salvar a calibração.")
+        elif escolha_foco == "Outro ➕" and not foco_novo.strip():
+            st.warning("Você selecionou 'Outro', por favor digite qual foi o parâmetro calibrado.")
+        else:
+            novo_registro_calib = {
+                "Data": datetime.now().strftime("%d/%m/%Y"),
+                "Avaliador": avaliador_calib,
+                "Parametro_Foco": foco_final, 
+                "Marca": marca_final_c,
+                "Linha": linha_final_c,
+                "Metodo": metodo_final_c,
+                "Moagem_Ideal": moagem_ideal,
+                "Proporcao_Ideal": proporcao_ideal,
+                "Tempo_Temperatura": tempo_temp,  
+                "Observacoes": obs_calib,
+            }
+            
+            df_novo_c = pd.concat([df_calib, pd.DataFrame([novo_registro_calib])], ignore_index=True)
+            
+            try:
+                conn.update(worksheet="Calibracoes", data=df_novo_c)
+                janela_sucesso()
+            except Exception as e:
+                st.error(f"Erro ao salvar na planilha de calibrações: {e}")
+                
+    st.markdown("---")
+    st.subheader(f"📖 Livro de Receitas ({avaliador_calib})")
+    
+    if not df_calib.empty and "Avaliador" in df_calib.columns:
+        df_calibracoes_filtrado = df_calib[df_calib["Avaliador"] == avaliador_calib]
+        
+        if not df_calibracoes_filtrado.empty:
+            # Inverte a ordem para mostrar o mais recente primeiro (opcional, mas fica melhor!)
+            for _, row in df_calibracoes_filtrado.iloc[::-1].iterrows():
+                foco_atual = row.get('Parametro_Foco', 'Não informado')
+                
+                st.success(f"### {row.get('Marca', '')} - {row.get('Linha', '')} no {row.get('Metodo', '')}\n"
+                           f"**🎯 Foco do Teste:** {foco_atual}\n\n"
+                           f"⚙️ **Moagem:** {row.get('Moagem_Ideal', '')} | 💧 **Proporção:** {row.get('Proporcao_Ideal', '')} | ⏳ **Tempo/Temp:** {row.get('Tempo_Temperatura', '-')}\n\n"
+                           f"📝 **Conclusão:** {row.get('Observacoes', '')}")
+        else:
+            st.info(f"Nenhuma receita definitiva salva por {avaliador_calib} ainda.")
+    else:
+        st.info("O livro de receitas está vazio.")
