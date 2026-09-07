@@ -378,7 +378,7 @@ with aba_historico:
         st.subheader("📋 Todos os Registros")
         
         # Mostra a tabela completa (ou você pode filtrar se preferir mostrar tudo)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width='stretch')
 
 with aba_calibracao:
     st.header("🎯 Calibrações Definidas (Receitas de Ouro)")
